@@ -5,11 +5,13 @@ import cv2
 import numpy as np
 import json
 
-from utils.data_processing import load_landmark_openface,compute_crop_radius
+import audio
+from utils.data_processing import load_landmark_openface, compute_crop_radius
 from utils.deep_speech import DeepSpeech
 from config.config import DataProcessingOptions
 
-def extract_audio(source_video_dir,res_audio_dir):
+
+def extract_audio(source_video_dir, res_audio_dir):
     '''
     extract audio files from videos
     '''
@@ -24,10 +26,12 @@ def extract_audio(source_video_dir,res_audio_dir):
         cmd = 'ffmpeg -i {} -f wav -ar 16000 {}'.format(video_path, audio_path)
         subprocess.call(cmd, shell=True)
 
-def extract_deep_speech(audio_dir,res_deep_speech_dir,deep_speech_model_path):
+
+def extract_deep_speech(audio_dir, res_deep_speech_dir, deep_speech_model_path):
     '''
     extract deep speech feature
     '''
+
     if not os.path.exists(res_deep_speech_dir):
         os.mkdir(res_deep_speech_dir)
     DSModel = DeepSpeech(deep_speech_model_path)
@@ -41,7 +45,51 @@ def extract_deep_speech(audio_dir,res_deep_speech_dir,deep_speech_model_path):
         ds_feature = DSModel.compute_audio_feature(wav_path)
         np.savetxt(res_dp_path, ds_feature)
 
-def extract_video_frame(source_video_dir,res_video_frame_dir):
+
+def extract_mel_spectrogram(audio_dir, res_mel_spectrogram_dir):
+    '''
+    Convert audio files to mel spectrograms and save them as text files.
+    '''
+
+    sample_rate = 16000
+    mel_idx_multiplier = 1
+    mel_step_size = 128
+    if not os.path.exists(res_mel_spectrogram_dir):
+        os.mkdir(res_mel_spectrogram_dir)
+
+    wav_path_list = glob.glob(os.path.join(audio_dir, '*.wav'))
+
+    for wav_path in wav_path_list:
+        video_name = os.path.basename(wav_path).replace('.wav', '')
+        res_mel_path = os.path.join(res_mel_spectrogram_dir, video_name + '_melspectrogram.txt')
+
+        if os.path.exists(res_mel_path):
+            os.remove(res_mel_path)
+
+        print('Converting audio to mel spectrogram: {}'.format(video_name))
+
+        wav = audio.load_wav(wav_path, sample_rate)
+        mel = audio.melspectrogram(wav)
+
+        if np.isnan(mel.reshape(-1)).sum() > 0:
+            print('NaN values found in mel spectrogram for audio: {}'.format(video_name))
+            continue
+
+        mel_chunks = []
+        i = 0
+        while 1:
+            start_idx = int(i * mel_idx_multiplier)
+            if start_idx + mel_step_size > len(mel[0]):
+                break
+            mel_chunks.append(mel[:, start_idx: start_idx + mel_step_size])
+            i += 1
+
+        # Save the mel spectrogram chunks to a text file
+        mel_chunks = np.array(mel_chunks)
+        np.savetxt(res_mel_path, mel_chunks.reshape(-1, mel_chunks.shape[-1]), fmt='%f')
+
+
+def extract_video_frame(source_video_dir, res_video_frame_dir):
     '''
         extract video frames from videos
     '''
@@ -67,7 +115,7 @@ def extract_video_frame(source_video_dir,res_video_frame_dir):
             cv2.imwrite(result_path, frame)
 
 
-def crop_face_according_openfaceLM(openface_landmark_dir,video_frame_dir,res_crop_face_dir,clip_length):
+def crop_face_according_openfaceLM(openface_landmark_dir, video_frame_dir, res_crop_face_dir, clip_length):
     '''
       crop face according to openface landmark
     '''
@@ -95,9 +143,10 @@ def crop_face_according_openfaceLM(openface_landmark_dir,video_frame_dir,res_cro
         video_clip_num = len(end_frame_index)
         for i in range(video_clip_num):
             first_image = cv2.imread(os.path.join(frame_dir, '000000.jpg'))
-            video_h,video_w = first_image.shape[0], first_image.shape[1]
-            crop_flag, radius_clip = compute_crop_radius((video_w,video_h),
-                                    landmark_openface_data[end_frame_index[i] - clip_length:end_frame_index[i], :,:])
+            video_h, video_w = first_image.shape[0], first_image.shape[1]
+            crop_flag, radius_clip = compute_crop_radius((video_w, video_h),
+                                                         landmark_openface_data[
+                                                         end_frame_index[i] - clip_length:end_frame_index[i], :, :])
             if not crop_flag:
                 continue
             radius_clip_1_4 = radius_clip // 4
@@ -105,33 +154,40 @@ def crop_face_according_openfaceLM(openface_landmark_dir,video_frame_dir,res_cro
             res_face_clip_dir = os.path.join(crop_face_video_dir, str(i).zfill(6))
             if not os.path.exists(res_face_clip_dir):
                 os.mkdir(res_face_clip_dir)
-            for frame_index in range(end_frame_index[i]- clip_length,end_frame_index[i]):
-                source_frame_path = os.path.join(frame_dir,str(frame_index).zfill(6)+'.jpg')
+            for frame_index in range(end_frame_index[i] - clip_length, end_frame_index[i]):
+                source_frame_path = os.path.join(frame_dir, str(frame_index).zfill(6) + '.jpg')
                 source_frame_data = cv2.imread(source_frame_path)
                 frame_landmark = landmark_openface_data[frame_index, :, :]
                 crop_face_data = source_frame_data[
-                                    frame_landmark[29, 1] - radius_clip:frame_landmark[
-                                                                            29, 1] + radius_clip * 2 + radius_clip_1_4,
-                                    frame_landmark[33, 0] - radius_clip - radius_clip_1_4:frame_landmark[
-                                                                                              33, 0] + radius_clip + radius_clip_1_4,
-                                    :].copy()
+                                 frame_landmark[29, 1] - radius_clip:frame_landmark[
+                                                                         29, 1] + radius_clip * 2 + radius_clip_1_4,
+                                 frame_landmark[33, 0] - radius_clip - radius_clip_1_4:frame_landmark[
+                                                                                           33, 0] + radius_clip + radius_clip_1_4,
+                                 :].copy()
                 res_crop_face_frame_path = os.path.join(res_face_clip_dir, str(frame_index).zfill(6) + '.jpg')
                 if os.path.exists(res_crop_face_frame_path):
                     os.remove(res_crop_face_frame_path)
                 cv2.imwrite(res_crop_face_frame_path, crop_face_data)
 
 
-def generate_training_json(crop_face_dir,deep_speech_dir,clip_length,res_json_path):
+def generate_training_json(crop_face_dir, deep_speech_dir, clip_length, res_json_path, mel_spectrogram_dir ):
     video_name_list = os.listdir(crop_face_dir)
     video_name_list.sort()
     res_data_dic = {}
     for video_index, video_name in enumerate(video_name_list):
-        print('generate training json file :{} {}/{}'.format(video_name,video_index,len(video_name_list)))
+        print('generate training json file :{} {}/{}'.format(video_name, video_index, len(video_name_list)))
         tem_dic = {}
         deep_speech_feature_path = os.path.join(deep_speech_dir, video_name + '_deepspeech.txt')
+
         if not os.path.exists(deep_speech_feature_path):
             raise ('wrong path of deep speech')
         deep_speech_feature = np.loadtxt(deep_speech_feature_path)
+
+
+        mel_spectrogram_feature_path = os.path.join(mel_spectrogram_dir, video_name + '_melspectrogram.txt')
+        if not os.path.exists(mel_spectrogram_feature_path):
+            raise Exception('Wrong path for Mel Spectrogram features: {}'.format(mel_spectrogram_feature_path))
+        mel_spectrogram_feature = np.loadtxt(mel_spectrogram_feature_path)
         video_clip_dir = os.path.join(crop_face_dir, video_name)
         clip_name_list = os.listdir(video_clip_dir)
         clip_name_list.sort()
@@ -147,21 +203,24 @@ def generate_training_json(crop_face_dir,deep_speech_dir,clip_length,res_json_pa
             assert int(float(os.path.basename(frame_path_list[0]).replace('.jpg', ''))) == start_index
             frame_name_list = [video_name + '/' + clip_name + '/' + os.path.basename(item) for item in frame_path_list]
             deep_speech_list = deep_speech_feature[start_index:start_index + clip_length, :].tolist()
+            mel_spectrogram_list = mel_spectrogram_feature[start_index:start_index + clip_length, :].tolist()
             if len(frame_name_list) != len(deep_speech_list):
                 print(' skip video: {}:{}/{}  clip:{}:{}/{} because of different length: {} {}'.format(
-                    video_name,video_index,len(video_name_list),clip_name,clip_index,len(clip_name_list),
-                     len(frame_name_list),len(deep_speech_list)))
+                    video_name, video_index, len(video_name_list), clip_name, clip_index, len(clip_name_list),
+                    len(frame_name_list), len(deep_speech_list)))
             tem_tem_dic['frame_name_list'] = frame_name_list
             tem_tem_dic['frame_path_list'] = frame_path_list
             tem_tem_dic['deep_speech_list'] = deep_speech_list
+            tem_tem_dic['mel_spectrogram_list'] = mel_spectrogram_list
+            clip_data_list.append(tem_tem_dic)
             clip_data_list.append(tem_tem_dic)
         tem_dic['video_clip_num'] = video_clip_num
         tem_dic['clip_data_list'] = clip_data_list
         res_data_dic[video_name] = tem_dic
     if os.path.exists(res_json_path):
         os.remove(res_json_path)
-    with open(res_json_path,'w') as f:
-        json.dump(res_data_dic,f)
+    with open(res_json_path, 'w') as f:
+        json.dump(res_data_dic, f)
 
 
 if __name__ == '__main__':
@@ -171,15 +230,17 @@ if __name__ == '__main__':
         extract_video_frame(opt.source_video_dir, opt.video_frame_dir)
     ##########  step2: extract audio files
     if opt.extract_audio:
-        extract_audio(opt.source_video_dir,opt.audio_dir)
+        extract_audio(opt.source_video_dir, opt.audio_dir)
     ##########  step3: extract deep speech features
     if opt.extract_deep_speech:
-        extract_deep_speech(opt.audio_dir, opt.deep_speech_dir,opt.deep_speech_model)
+        extract_deep_speech(opt.audio_dir, opt.deep_speech_dir, opt.deep_speech_model)
     ##########  step4: crop face images
     if opt.crop_face:
-        crop_face_according_openfaceLM(opt.openface_landmark_dir,opt.video_frame_dir,opt.crop_face_dir,opt.clip_length)
+        crop_face_according_openfaceLM(opt.openface_landmark_dir, opt.video_frame_dir, opt.crop_face_dir,
+                                       opt.clip_length)
     ##########  step5: generate training json file
     if opt.generate_training_json:
-        generate_training_json(opt.crop_face_dir,opt.deep_speech_dir,opt.clip_length,opt.json_path)
-
-
+        generate_training_json(opt.crop_face_dir, opt.deep_speech_dir, opt.clip_length, opt.json_path,opt.mel_spectrogram_dir)
+    ##########  step6: extract mel_spectrogram
+    if opt.extract_mel_spectrogram:
+        extract_mel_spectrogram(opt.audio_dir, opt.mel_spectrogram_dir)

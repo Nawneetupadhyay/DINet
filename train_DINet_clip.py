@@ -1,7 +1,7 @@
 from models.Discriminator import Discriminator
 from models.VGG19 import Vgg19
 from models.DINet import DINet
-from models.Syncnet import SyncNetPerception
+from models.Syncnet import SyncNetPerception, SyncNet
 from utils.training_utils import get_scheduler, update_learning_rate,GANLoss
 from config.config import DINetTrainingOptions
 from sync_batchnorm import convert_model
@@ -37,9 +37,13 @@ if __name__ == "__main__":
     net_dI = Discriminator(opt.source_channel ,opt.D_block_expansion, opt.D_num_blocks, opt.D_max_features).cuda()
     net_dV = Discriminator(opt.source_channel * 5, opt.D_block_expansion, opt.D_num_blocks, opt.D_max_features).cuda()
     net_vgg = Vgg19().cuda()
-    net_lipsync = SyncNetPerception(opt.pretrained_syncnet_path).cuda()
+
     # parallel
     net_g = nn.DataParallel(net_g)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    net_lipsync = SyncNet().to(device)
+
     net_g = convert_model(net_g)
     net_dI = nn.DataParallel(net_dI)
     net_dV = nn.DataParallel(net_dV)
@@ -67,7 +71,7 @@ if __name__ == "__main__":
         net_g.train()
         for iteration, data in enumerate(training_data_loader):
             # forward
-            source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full = data
+            source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_full = data
             source_clip = torch.cat(torch.split(source_clip, 1, dim=1), 0).squeeze(1).float().cuda()
             source_clip_mask = torch.cat(torch.split(source_clip_mask, 1, dim=1), 0).squeeze(1).float().cuda()
             reference_clip = torch.cat(torch.split(reference_clip, 1, dim=1), 0).squeeze(1).float().cuda()
@@ -122,7 +126,7 @@ if __name__ == "__main__":
             fake_out_clip = torch.cat(torch.split(fake_out, opt.batch_size, dim=0), 1)
             fake_out_clip_mouth = fake_out_clip[:, :, train_data.radius:train_data.radius + train_data.mouth_region_size,
             train_data.radius_1_4:train_data.radius_1_4 + train_data.mouth_region_size]
-            sync_score = net_lipsync(fake_out_clip_mouth, deep_speech_full)
+            sync_score = net_lipsync(fake_out_clip_mouth, mel_spectrogram_full)
             loss_sync = criterionMSE(sync_score, real_tensor.expand_as(sync_score)) * opt.lamb_syncnet_perception
             # combine all losses
             loss_g =   loss_g_perception + loss_g_dI +loss_g_dV + loss_sync

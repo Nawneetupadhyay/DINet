@@ -8,6 +8,7 @@ class DataProcessingOptions():
         self.parser.add_argument('--extract_video_frame', action='store_true', help='extract video frame')
         self.parser.add_argument('--extract_audio', action='store_true', help='extract audio files from videos')
         self.parser.add_argument('--extract_deep_speech', action='store_true', help='extract deep speech features')
+        self.parser.add_argument('--extract_mel_spectrogram', action='store_true', help='extract mel spectrogram ')
         self.parser.add_argument('--crop_face', action='store_true', help='crop face')
         self.parser.add_argument('--generate_training_json', action='store_true', help='generate training json file')
 
@@ -20,6 +21,9 @@ class DataProcessingOptions():
         self.parser.add_argument('--audio_dir', type=str, default="./asserts/training_data/split_video_25fps_audio",
                             help='path of audios')
         self.parser.add_argument('--deep_speech_dir', type=str, default="./asserts/training_data/split_video_25fps_deepspeech",
+                                 help='path of deep speech')
+        self.parser.add_argument('--mel_spectrogram_dir', type=str,
+                                 default="./asserts/training_data/split_video_25fps_mel_spectrogram",
                                  help='path of deep speech')
         self.parser.add_argument('--crop_face_dir', type=str, default="./asserts/training_data/split_video_25fps_crop_face",
                             help='path of crop face dir')

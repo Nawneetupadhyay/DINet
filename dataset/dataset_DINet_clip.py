@@ -73,6 +73,7 @@ class DINetDataset(Dataset):
         deep_speech_clip = np.stack(deep_speech_list, 0)
         reference_clip = np.stack(reference_clip_list, 0)
         deep_speech_full = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['deep_speech_list'])
+        mel_spectrogram_full = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['mel_spectrogram_list'])
 
         # # display data
         # display_source = np.concatenate(source_clip_list,1)
@@ -105,7 +106,8 @@ class DINetDataset(Dataset):
         reference_clip = torch.from_numpy(reference_clip).float().permute(0, 3, 1, 2)
         deep_speech_clip = torch.from_numpy(deep_speech_clip).float().permute(0, 2, 1)
         deep_speech_full = torch.from_numpy(deep_speech_full).permute(1, 0)
-        return source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full
+        mel_spectrogram_full = torch.from_numpy(deep_speech_full).permute(1, 0)
+        return source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_full
 
     def __len__(self):
         return self.length
