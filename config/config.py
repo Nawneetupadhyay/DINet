@@ -42,7 +42,7 @@ class DINetTrainingOptions():
         self.parser.add_argument('--seed', type=int, default=456, help='random seed to use.')
         self.parser.add_argument('--source_channel', type=int, default=3, help='input source image channels')
         self.parser.add_argument('--ref_channel', type=int, default=15, help='input reference image channels')
-        self.parser.add_argument('--audio_channel', type=int, default=29, help='input audio channels')
+        self.parser.add_argument('--audio_channel', type=int, default=80, help='input audio channels')
         self.parser.add_argument('--augment_num', type=int, default=32, help='augment training data')
         self.parser.add_argument('--mouth_region_size', type=int, default=64, help='augment training data')
         self.parser.add_argument('--train_data', type=str, default=r"./asserts/training_data/training_json.json",

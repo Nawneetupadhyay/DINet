@@ -40,6 +40,7 @@ class DINetDataset(Dataset):
         source_clip_mask_list = []
         deep_speech_list = []
         reference_clip_list = []
+        mel_spectrogram_list = []
         for source_frame_index in range(2, 2 + 5):
             ## load source clip
             source_image_data = cv2.imread(source_image_path_list[source_frame_index])[:, :, ::-1]
@@ -54,6 +55,12 @@ class DINetDataset(Dataset):
             deepspeech_array = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['deep_speech_list'][
                                        source_frame_index - 2:source_frame_index + 3])
             deep_speech_list.append(deepspeech_array)
+
+            ## load mel spectrogram feature
+            mel_spectrogram_array = np.array(
+                self.data_dic[video_name]['clip_data_list'][source_anchor]['mel_spectrogram_list'][
+                source_frame_index - 2:source_frame_index + 3])
+            mel_spectrogram_list.append(mel_spectrogram_array)
 
             ## ## load reference images
             reference_frame_list = []
@@ -71,6 +78,7 @@ class DINetDataset(Dataset):
         source_clip = np.stack(source_clip_list, 0)
         source_clip_mask = np.stack(source_clip_mask_list, 0)
         deep_speech_clip = np.stack(deep_speech_list, 0)
+        mel_spectrogram_clip = np.stack(mel_spectrogram_list, 0)
         reference_clip = np.stack(reference_clip_list, 0)
         deep_speech_full = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['deep_speech_list'])
         mel_spectrogram_full = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['mel_spectrogram_list'])
@@ -105,9 +113,11 @@ class DINetDataset(Dataset):
         source_clip_mask = torch.from_numpy(source_clip_mask).float().permute(0, 3, 1, 2)
         reference_clip = torch.from_numpy(reference_clip).float().permute(0, 3, 1, 2)
         deep_speech_clip = torch.from_numpy(deep_speech_clip).float().permute(0, 2, 1)
+        mel_spectrogram_clip = torch.from_numpy(mel_spectrogram_clip).float().permute(0, 2, 1)  # Added line
+
         deep_speech_full = torch.from_numpy(deep_speech_full).permute(1, 0)
-        mel_spectrogram_full = torch.from_numpy(deep_speech_full).permute(1, 0)
-        return source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_full
+        mel_spectrogram_full = torch.from_numpy(mel_spectrogram_full).permute(1, 0)
+        return source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_clip,mel_spectrogram_full
 
     def __len__(self):
         return self.length

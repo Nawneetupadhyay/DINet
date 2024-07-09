@@ -29,7 +29,7 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(opt.seed)
     # load training data in memory
     train_data = DINetDataset(opt.train_data,opt.augment_num,opt.mouth_region_size)
-    training_data_loader = DataLoader(dataset=train_data,  batch_size=opt.batch_size, shuffle=True,drop_last=True)
+    training_data_loader = DataLoader(dataset=train_data,  batch_size=2, shuffle=True,drop_last=True)
     train_data_length = len(training_data_loader)
     # init network
     net_g = DINet(opt.source_channel,opt.ref_channel,opt.audio_channel).cuda()
@@ -59,13 +59,13 @@ if __name__ == "__main__":
         net_g.train()
         for iteration, data in enumerate(training_data_loader):
             # read data
-            source_image_data,source_image_mask, reference_clip_data,deepspeech_feature = data
+            source_image_data,source_image_mask, reference_clip_data,mel_feature = data
             source_image_data = source_image_data.float().cuda()
             source_image_mask = source_image_mask.float().cuda()
             reference_clip_data = reference_clip_data.float().cuda()
-            deepspeech_feature = deepspeech_feature.float().cuda()
+            mel_feature = mel_feature.float().cuda()
             # network forward
-            fake_out = net_g(source_image_mask,reference_clip_data,deepspeech_feature)
+            fake_out = net_g(source_image_mask,reference_clip_data,mel_feature)
             # down sample output image and real image
             fake_out_half = F.avg_pool2d(fake_out, 3, 2, 1, count_include_pad=False)
             target_tensor_half = F.interpolate(source_image_data, scale_factor=0.5, mode='bilinear')

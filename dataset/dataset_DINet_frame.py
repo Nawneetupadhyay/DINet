@@ -47,6 +47,9 @@ class DINetDataset(Dataset):
         ## load deep speech feature
         deepspeech_feature = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['deep_speech_list'][source_random_index - 2:source_random_index + 3])
 
+        ## load mel_spectrogram feature
+        mel_feature = np.array(self.data_dic[video_name]['clip_data_list'][source_anchor]['mel_spectrogram_list'][
+                               source_random_index - 2:source_random_index + 3])
         ## load reference images
         reference_frame_data_list = []
         for reference_anchor in reference_anchor_list:
@@ -68,7 +71,8 @@ class DINetDataset(Dataset):
         source_image_mask = torch.from_numpy(source_image_mask).float().permute(2,0,1)
         reference_clip_data = torch.from_numpy(reference_clip_data).float().permute(2,0,1)
         deepspeech_feature = torch.from_numpy(deepspeech_feature).float().permute(1,0)
-        return source_image_data,source_image_mask, reference_clip_data,deepspeech_feature
+        mel_feature = torch.from_numpy(mel_feature).float().permute(1, 0)
+        return source_image_data,source_image_mask, reference_clip_data,mel_feature
 
     def __len__(self):
         return self.length

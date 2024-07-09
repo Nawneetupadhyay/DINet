@@ -52,10 +52,8 @@ def extract_mel_spectrogram(audio_dir, res_mel_spectrogram_dir):
     '''
 
     sample_rate = 16000
-    mel_idx_multiplier = 1
-    mel_step_size = 128
     if not os.path.exists(res_mel_spectrogram_dir):
-        os.mkdir(res_mel_spectrogram_dir)
+        os.makedirs(res_mel_spectrogram_dir)
 
     wav_path_list = glob.glob(os.path.join(audio_dir, '*.wav'))
 
@@ -71,22 +69,13 @@ def extract_mel_spectrogram(audio_dir, res_mel_spectrogram_dir):
         wav = audio.load_wav(wav_path, sample_rate)
         mel = audio.melspectrogram(wav)
 
-        if np.isnan(mel.reshape(-1)).sum() > 0:
+        if np.isnan(mel).any():
             print('NaN values found in mel spectrogram for audio: {}'.format(video_name))
             continue
 
-        mel_chunks = []
-        i = 0
-        while 1:
-            start_idx = int(i * mel_idx_multiplier)
-            if start_idx + mel_step_size > len(mel[0]):
-                break
-            mel_chunks.append(mel[:, start_idx: start_idx + mel_step_size])
-            i += 1
+        # Save the entire mel spectrogram to a text file
+        np.savetxt(res_mel_path, mel.T, fmt='%f')
 
-        # Save the mel spectrogram chunks to a text file
-        mel_chunks = np.array(mel_chunks)
-        np.savetxt(res_mel_path, mel_chunks.reshape(-1, mel_chunks.shape[-1]), fmt='%f')
 
 
 def extract_video_frame(source_video_dir, res_video_frame_dir):
