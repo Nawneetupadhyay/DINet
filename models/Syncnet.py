@@ -1,5 +1,9 @@
 import torch
 from torch import nn
+
+from models.syncnet_wav2lip import SyncNet_color
+
+
 class ResBlock1d(nn.Module):
     '''
         basic block (no BN)
@@ -202,14 +206,27 @@ class SyncNetPerception(nn.Module):
     '''
     def __init__(self,pretrain_path):
         super(SyncNetPerception, self).__init__()
-        self.model = SyncNet(15,29,128)
-        print('load lip sync model : {}'.format(pretrain_path))
-        self.model.load_state_dict(torch.load(pretrain_path)['state_dict']['net'])
+        use_cuda = torch.cuda.is_available()
+        device = torch.device("cuda" if use_cuda else "cpu")
+        self.model = SyncNet_color().to(device)
+
+        for m in self.model.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0.0, std=0.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0.0, std=0.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+            # Set all parameters to not require gradients
         for param in self.model.parameters():
             param.requires_grad = False
         self.model.eval()
 
     def forward(self, image,audio):
+        audio = audio.unsqueeze(0)
         score = self.model(image,audio)
         return score
 

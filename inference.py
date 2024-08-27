@@ -2,7 +2,7 @@ from utils.deep_speech import DeepSpeech
 from utils.data_processing import load_landmark_openface,compute_crop_radius
 from config.config import DINetInferenceOptions
 from models.DINet import DINet
-
+import audio
 import numpy as np
 import glob
 import os
@@ -11,6 +11,8 @@ import torch
 import subprocess
 import random
 from collections import OrderedDict
+import os
+
 
 def extract_frames_from_video(video_path,save_dir):
     videoCapture = cv2.VideoCapture(video_path)
@@ -28,6 +30,7 @@ def extract_frames_from_video(video_path,save_dir):
 
 if __name__ == '__main__':
     # load config
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
     opt = DINetInferenceOptions().parse_args()
     if not os.path.exists(opt.source_video_path):
         raise ('wrong video path : {}'.format(opt.source_video_path))
@@ -47,6 +50,28 @@ if __name__ == '__main__':
     ds_feature = DSModel.compute_audio_feature(opt.driving_audio_path)
     res_frame_length = ds_feature.shape[0]
     ds_feature_padding = np.pad(ds_feature, ((2, 2), (0, 0)), mode='edge')
+    ############################################## extract melspectrogram feature ##############################################
+    sample_rate = 16000
+    opt_mel_path = opt.driving_audio_path  # Assuming opt.audio_path is the path to your audio file
+
+    print('Converting audio to mel spectrogram for: {}'.format(opt_mel_path))
+
+    if not os.path.exists(opt_mel_path):
+        raise Exception('Wrong audio path: {}'.format(opt_mel_path))
+
+    # Load the audio file
+    wav = audio.load_wav(opt_mel_path, sample_rate)
+
+    # Generate the mel spectrogram
+    mel = audio.melspectrogram(wav)
+
+    if np.isnan(mel).any():
+        raise Exception('NaN values found in mel spectrogram')
+
+    # Transpose the mel spectrogram to align with how you would like to save it
+    mel = mel.T
+
+    mel_feature_padding = np.pad(mel, ((2, 2), (0, 0)), mode='edge')
     ############################################## load facial landmark ##############################################
     print('loading facial landmarks from : {}'.format(opt.source_openface_landmark_path))
     if not os.path.exists(opt.source_openface_landmark_path):
@@ -142,8 +167,10 @@ if __name__ == '__main__':
 
         crop_frame_tensor = torch.from_numpy(crop_frame_data).float().cuda().permute(2, 0, 1).unsqueeze(0)
         deepspeech_tensor = torch.from_numpy(ds_feature_padding[clip_end_index - 5:clip_end_index, :]).permute(1, 0).unsqueeze(0).float().cuda()
+        mel_tensor = torch.from_numpy(mel_feature_padding[clip_end_index - 5:clip_end_index, :]).permute(1, 0).unsqueeze(0).float().cuda()
+
         with torch.no_grad():
-            pre_frame = model(crop_frame_tensor, ref_img_tensor, deepspeech_tensor)
+            pre_frame = model(crop_frame_tensor, ref_img_tensor, mel_tensor)
             pre_frame = pre_frame.squeeze(0).permute(1, 2, 0).detach().cpu().numpy() * 255
         videowriter_face.write(pre_frame[:, :, ::-1].copy().astype(np.uint8))
         pre_frame_resize = cv2.resize(pre_frame, (crop_frame_w,crop_frame_h))

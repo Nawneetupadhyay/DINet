@@ -29,7 +29,7 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(opt.seed)
     # load training data in memory
     train_data = DINetDataset(opt.train_data,opt.augment_num,opt.mouth_region_size)
-    training_data_loader = DataLoader(dataset=train_data,  batch_size=2, shuffle=True,drop_last=True)
+    training_data_loader = DataLoader(dataset=train_data,  batch_size=opt.batch_size, shuffle=True,drop_last=True)
     train_data_length = len(training_data_loader)
     # init network
     net_g = DINet(opt.source_channel,opt.ref_channel,opt.audio_channel).cuda()

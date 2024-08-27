@@ -1,12 +1,13 @@
 from models.Discriminator import Discriminator
+from models.Syncnet import SyncNetPerception
 from models.VGG19 import Vgg19
 from models.DINet import DINet
-from models.Syncnet import SyncNetPerception, SyncNet
 from utils.training_utils import get_scheduler, update_learning_rate,GANLoss
 from config.config import DINetTrainingOptions
 from sync_batchnorm import convert_model
 from torch.utils.data import DataLoader
 from dataset.dataset_DINet_clip import DINetDataset
+from models import syncnet_wav2lip
 
 
 import random
@@ -16,6 +17,16 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import torch.nn.functional as F
+
+
+def cosine_loss(a, v, y):
+    d = nn.functional.cosine_similarity(a, v)
+    loss = logloss(d.unsqueeze(1), y)
+
+    return loss
+
+
+logloss = nn.BCELoss()
 
 if __name__ == "__main__":
     '''
@@ -42,7 +53,7 @@ if __name__ == "__main__":
     net_g = nn.DataParallel(net_g)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    net_lipsync = SyncNet().to(device)
+    net_lipsync = SyncNetPerception(opt.pretrained_syncnet_path).cuda()
 
     net_g = convert_model(net_g)
     net_dI = nn.DataParallel(net_dI)
@@ -71,13 +82,15 @@ if __name__ == "__main__":
         net_g.train()
         for iteration, data in enumerate(training_data_loader):
             # forward
-            source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_full = data
+            source_clip,source_clip_mask, reference_clip,deep_speech_clip,deep_speech_full,mel_spectrogram_clip,mel_spectrogram_full = data
             source_clip = torch.cat(torch.split(source_clip, 1, dim=1), 0).squeeze(1).float().cuda()
             source_clip_mask = torch.cat(torch.split(source_clip_mask, 1, dim=1), 0).squeeze(1).float().cuda()
             reference_clip = torch.cat(torch.split(reference_clip, 1, dim=1), 0).squeeze(1).float().cuda()
+            mel_spectrogram_clip = torch.cat(torch.split(mel_spectrogram_clip, 1, dim=1), 0).squeeze(1).float().cuda()
             deep_speech_clip = torch.cat(torch.split(deep_speech_clip, 1, dim=1), 0).squeeze(1).float().cuda()
+            mel_spectrogram_full = mel_spectrogram_full.float().cuda()
             deep_speech_full = deep_speech_full.float().cuda()
-            fake_out = net_g(source_clip_mask,reference_clip,deep_speech_clip)
+            fake_out = net_g(source_clip_mask,reference_clip,mel_spectrogram_clip)
             fake_out_half = F.avg_pool2d(fake_out, 3, 2, 1, count_include_pad=False)
             source_clip_half = F.interpolate(source_clip, scale_factor=0.5, mode='bilinear')
             # (1) Update DI network
